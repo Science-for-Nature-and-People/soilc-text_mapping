@@ -2,7 +2,7 @@
 # PACKAGES
 # ===============================
 # library("devtools")
-# install_github("massimoaria/bibliometrix") # Needs to be installed from GitHub not CRAN
+# devtools::install_github("massimoaria/bibliometrix") # Needs to be installed from GitHub not CRAN
 library(tools) # for file manipulations
 library(tidyverse) # for general purpose data manip
 library(bibliometrix) # For reading and analyzing ISI stuff
@@ -77,6 +77,37 @@ elsevier_pdf_download <- function(elsevier_xml_link, filepath) {
 }
 
 
+elsevier_tagger <- function(df_doi, col_links) {
+  # remove the entry without links
+  df_doi <- df_doi[lapply(df_doi[ ,col_links], length) > 0, ]
+  # iterate through the list looking for the word "elsevire" in the URL 
+  for (i in 1:nrow(df_doi)) {
+    if (grepl('elsevier',df_doi[i, col_links][[1]])) { # checking for string 'elsevier' in link
+      df_doi$elsevier[i] <- TRUE
+    } else {
+      df_doi$elsevier[i] <- FALSE
+    }
+  }
+  return(df_doi)
+}
+
+
+url_selector <- function(df_doi, col_urls, col_tag) {
+  for (i in 1:dim(df_doi)[1]) {
+    if (df_doi[i,col_tag]) { # if it's from elsevier, we want to get the xml link
+      link <- df_doi[i,col_urls]$xml$xml
+    } else if ('pdf' %in% names(df_doi[i,col_urls])) { # otherwise, we prefer the 'pdf' link type
+      link <- df_doi[i,col_urls]$pdf$pdf
+    } else if ('unspecified' %in% names(df_doi[i,col_urls])) { # our last preference is the 'unspecified' link type
+      link <- df_doi[i,col_urls]$unspecified$unspecified
+    } else { # we don't handle links of type 'html' or 'plain', because they almost never provide pdf download; moreover, we only want xml links from elsevier because we only handle those
+      link <- NA
+    }
+    df_doi$download_link[i] <- as.character(link)
+  }
+}
+
+
 #' This function checks if a file is binary
 #'
 #' @param filepath A character; path to target file
@@ -124,28 +155,12 @@ my_df$links <- sapply(my_df$DOI, crm_links) # getting links for each DOI
 my_df <- my_df[lapply(my_df$links, length) > 0,] # 5759 of 6406 DOIs returned links via crm_links()
 
 # elsevier links require a separate download process, so we distinguish them here
-for (i in 1:length(my_df$links)) {
-  if (grepl('elsevier',my_df$links[[i]][[1]])) { # checking for string 'elsevier' in link
-    my_df$elsevier[i] <- TRUE
-  } else {
-    my_df$elsevier[i] <- FALSE
-  }
-}
+elsevier_tagger(my_df, links)
 
 # selecting a single link for each DOI (up until now, there has been a list of links assoc. to each DOI)
-for (i in 1:dim(my_df)[1]) {
-  if (my_df$elsevier[i]) { # if it's from elsevier, we want to get the xml link
-    link <- my_df$links[[i]]$xml$xml
-  } else if ('pdf' %in% names(my_df$links[[i]])) { # otherwise, we prefer the 'pdf' link type
-    link <- my_df$links[[i]]$pdf$pdf
-  } else if ('unspecified' %in% names(my_df$links[[i]])) { # our last preference is the 'unspecified' link type
-    link <- my_df$links[[i]]$unspecified$unspecified
-  } else { # we don't handle links of type 'html' or 'plain', because they almost never provide pdf download; moreover, we only want xml links from elsevier because we only handle those
-    link <- NA
-  }
-  my_df$download_link[i] <- as.character(link)
-}
 
+
+url_selector(my_df)
 
 
 ## STEP 3: DOWNLOAD PDFS FROM LINKS
@@ -212,8 +227,11 @@ html_paths <- file.path(nopdf_output_dir,
 file.rename(from = non_pdf_paths, to = html_paths)
 
 ## Fix the double dot before file extension
+# list the pdfs
 pdf_files <- dir(pdf_output_dir, full.names = TRUE)
+# Create filename list with the ..pdf changed to .pdf
 pdf_fixed <- gsub("\\.\\.pdf","\\.pdf",pdf_files)
+# Rename the files
 file.rename(from = pdf_files , to = pdf_fixed)
 
 # output information regarding the download processs to csv

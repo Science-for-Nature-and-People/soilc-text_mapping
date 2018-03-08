@@ -158,8 +158,6 @@ my_df <- my_df[lapply(my_df$links, length) > 0,] # 5759 of 6406 DOIs returned li
 elsevier_tagger(my_df, links)
 
 # selecting a single link for each DOI (up until now, there has been a list of links assoc. to each DOI)
-
-
 url_selector(my_df)
 
 
@@ -227,6 +225,7 @@ html_paths <- file.path(nopdf_output_dir,
 file.rename(from = non_pdf_paths, to = html_paths)
 
 ## Fix the double dot before file extension
+
 # list the pdfs
 pdf_files <- dir(pdf_output_dir, full.names = TRUE)
 # Create filename list with the ..pdf changed to .pdf
